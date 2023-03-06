@@ -1,0 +1,39 @@
+/*
+ * Copyright (c) 2023, Antmicro Ltd. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+
+// USB PD and DRP controllers on SYS I2C bus
+&gen2_i2c {
+	// TPS65988 dual-port USB-C Power Delivery controller
+	// port1 is USBC3 (J3) @ i2c_addr=h23
+	// port2 is USBC0 (J4) @ i2c_addr=h27
+	job_usbc3_pdc: tps65988@23 {
+		compatible = "ti,tps6598x";
+		status = "disabled";	// TODO
+		reg = <0x23>;
+	};
+
+	job_usbc0_pdc: tps65988@27 {
+		compatible = "ti,tps6598x";
+		status = "disabled";	// TODO
+		reg = <0x27>;
+	};
+
+	// HD3SS3220 dual role port controller for USBC1 port
+	// NOTE: this is just a DRD/DRP without Power Delivery
+	job_usbc1_drpc: hd3ss3220@47 {
+		compatible = "ti,hd3ss3220";
+		status = "disabled";	// TODO
+		reg = <0x47>;
+	};
+};
