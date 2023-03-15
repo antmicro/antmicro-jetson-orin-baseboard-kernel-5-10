@@ -79,6 +79,16 @@ config NV_VIDEO_LC898212
 	  To compile this driver as a module, choose M here: the module
 	  will be called lc898212.
 
+config NV_VIDEO_OV5640
+	tristate "OV5640 camera sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	help
+	  This is an NVidia-specific Video4Linux2 sensor-level driver for
+	  the OmniVision OV5640 camera.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called ov5640.
+
 config NV_VIDEO_OV5693
 	tristate "OV5693 camera sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
