@@ -757,6 +757,11 @@ static int sensor_common_init_device_config(
 	if (!np)
 		return -EINVAL;
 
+	if (of_property_read_bool(np, "nvidia,no-sensor-bus-introspection")) {
+		cfg->type = CAMERA_DEVICE_NONE;
+		return 0;
+	}
+
 	parent = of_get_parent(np);
 	if (!parent)
 		return -EINVAL;
