@@ -757,6 +757,12 @@ static int sensor_common_init_device_config(
 	if (!np)
 		return -EINVAL;
 
+	if (of_property_read_bool(np, "nvidia,no-sensor-bus-introspection")) {
+		dev_info(dev, "sensor parent bus (i2c/spi) introspection disabled, device is reported as CAMERA_DEVICE_NONE\n");
+		cfg->type = CAMERA_DEVICE_NONE;
+		return 0;
+	}
+
 	parent = of_get_parent(np);
 	if (!parent)
 		return -EINVAL;
