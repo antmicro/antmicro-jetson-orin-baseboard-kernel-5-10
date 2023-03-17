@@ -52,6 +52,7 @@ struct ov5640 {
 	struct i2c_client		*i2c_client;
 	struct v4l2_subdev		*subdev;
 	struct media_pad		pad;
+	struct regulator		*vdd_reg;
 
 	int				reg_offset;
 
@@ -437,6 +438,15 @@ static int ov5640_probe(struct i2c_client *client,
 		return -EFAULT;
 	}
 
+	// Get regulator and enable power before proceeding
+	// This is a very primitive power mgmt, since we don't turn off the camera when it is unused
+	priv->vdd_reg = devm_regulator_get(&client->dev, "vdd");
+	if (IS_ERR(priv->vdd_reg))
+		return dev_err_probe(&client->dev, PTR_ERR(priv->vdd_reg), "reg get err\n");
+	err = regulator_enable(priv->vdd_reg);
+	if (err)
+		return dev_err_probe(&client->dev, err, "reg en err\n");
+
 	common_data->ops		= &ov5640_common_ops;
 	common_data->ctrl_handler	= &priv->ctrl_handler;
 	common_data->dev		= &client->dev;
@@ -532,6 +542,8 @@ ov5640_remove(struct i2c_client *client)
 {
 	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
 	struct ov5640 *priv = (struct ov5640 *)s_data->priv;
+
+	regulator_disable(priv->vdd_reg);
 
 	v4l2_async_unregister_subdev(priv->subdev);
 #if defined(CONFIG_MEDIA_CONTROLLER)
