@@ -275,7 +275,7 @@ static void tegra_channel_update_format(struct tegra_channel *chan,
 	chan->buffer_offset[0] = 0;
 	chan->interlace_bplfactor = 1;
 
-	dev_dbg(&chan->video->dev,
+	dev_dbg((chan && chan->video) ? &chan->video->dev : NULL,
 			"%s: Resolution= %dx%d bytesperline=%d\n",
 			__func__, width, height, chan->format.bytesperline);
 
