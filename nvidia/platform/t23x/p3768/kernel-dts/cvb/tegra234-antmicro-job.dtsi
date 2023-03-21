@@ -128,7 +128,7 @@
 
 			// Recovery port (bodge microUSB on rev1.0.0)
 			usb2-0 {
-				mode = "device";
+				mode = "peripheral";
 				status = "okay";
 				vbus-supply = <&job_reg_5v>;
 #if TEGRA_XUSB_DT_VERSION >= DT_VERSION_3
