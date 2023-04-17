@@ -13,8 +13,8 @@
 
 // Camera I2C buses via I2C mux
 &cam_i2c {
-	job_cam_i2c_mux: pca9547@70 {
-		compatible = "nxp,pca9547";
+	job_cam_i2c_mux: pca9548@70 {
+		compatible = "nxp,pca9548";
 		status = "okay";
 		reg = <0x70>;
 		#address-cells = <1>;

@@ -24,7 +24,7 @@
 #include "tegra234-antmicro-job-fixed-regulators.dtsi"
 #include "tegra234-antmicro-job-i2c-buses.dtsi"
 #include "tegra234-antmicro-job-gpioex.dtsi"
-#include "tegra234-antmicro-job-usbc.dtsi"
+#include "tegra234-antmicro-job-usb.dtsi"
 
 // 4xOV5640 cameras
 #include "tegra234-antmicro-job-camera-ov5640.dtsi"
@@ -72,117 +72,6 @@
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_INDICATOR;
 		};
-	};
-
-	xusb_padctl: xusb_padctl@3520000 {
-		// See "Documentation/devicetree/bindings/phy/nvidia,tegra124-xusb-padctl.txt" for reference
-		status = "okay";
-		pads {
-			usb2 {
-				lanes {
-					usb2-0 {
-						nvidia,function = "xusb";
-						status = "okay";
-					};
-					usb2-1 {
-						nvidia,function = "xusb";
-						status = "okay";
-					};
-					usb2-2 {
-						nvidia,function = "xusb";
-						status = "okay";
-					};
-				};
-			};
-			usb3 {
-				lanes {
-					usb3-0 {
-						nvidia,function = "xusb";
-						status = "okay";
-					};
-					usb3-1 {
-						nvidia,function = "xusb";
-						status = "disabled";	// TODO, see below
-					};
-					usb3-2 {
-						nvidia,function = "xusb";
-						status = "okay";
-					};
-				};
-			};
-		};
-
-		ports {
-			// ---- JOB rev1.0.0 port mapping ----
-			// port USBC0: 		usb2-2 & usb3-0
-			// port USBC1: 		usb2-1 & usb3-2
-			//
-			// ---- FIXME!! ----
-			// Rev1.0.0 specific:
-			// 	1. With HW bodge hotfix, usb2-0 is used for recovery mode & is exposed on a separate microUSB, no usb3 mapped to it.
-			//  2. usb3-1 is left disabled.
-			// 	3. usb2-0 is hardcoded to use device mode.
-			// In general:
-			//	USBC0 and USBC1 are hardcoded to be in host mode for now. To support OTG/DRD,
-			// 	PD/DRP controllers and/or VBUS/ID detection must be configured and used.
-
-			// Recovery port (bodge microUSB on rev1.0.0)
-			usb2-0 {
-				mode = "peripheral";
-				status = "okay";
-				vbus-supply = <&job_reg_5v>;
-#if TEGRA_XUSB_DT_VERSION >= DT_VERSION_3
-				usb-role-switch;
-				connector {
-					compatible = "usb-b-connector", "gpio-usb-b-connector";
- 					label = "micro-USB";
- 					type = "micro";
- 					vbus-gpio = <&tegra_main_gpio TEGRA234_MAIN_GPIO(Z, 1) GPIO_ACTIVE_LOW>;
- 				};
-#endif
-			};
-
-			// USBC0
-			usb2-2 {
-				mode = "host";
-				vbus-supply = <&job_reg_5v>;	// Delegate switching to HW (considered always on)
-				status = "okay";
-			};
-			usb3-0 {
-				nvidia,usb2-companion = <2>;
-				status = "okay";
-			};
-
-			// USBC1
-			usb2-1 {
-				mode = "host";
-				vbus-supply = <&job_reg_5v>;	// Delegate switching to HW (considered always on)
-				status = "okay";
-			};
-			usb3-2 {
-				nvidia,usb2-companion = <1>;
-				status = "okay";
-			};
-		};
-	};
-
-	// USB Device controller
-	tegra_xudc: xudc@3550000 {
-		status = "okay";
-		phys = <&{/xusb_padctl@3520000/pads/usb2/lanes/usb2-0}>;
-		phy-names = "usb2-0";
-		nvidia,xusb-padctl = <&xusb_padctl>;
-	};
-
-	// USB Host controller
-	tegra_xhci: xhci@3610000 {
-		status = "okay";
-		phys = <&{/xusb_padctl@3520000/pads/usb2/lanes/usb2-1}>,
-			<&{/xusb_padctl@3520000/pads/usb2/lanes/usb2-2}>,
-			<&{/xusb_padctl@3520000/pads/usb3/lanes/usb3-0}>,
-			<&{/xusb_padctl@3520000/pads/usb3/lanes/usb3-2}>;
-		phy-names = "usb2-1", "usb2-2", "usb3-0", "usb3-2";
-		nvidia,xusb-padctl = <&xusb_padctl>;
 	};
 
 	spi@3210000{ /* SPI1 in 40 pin conn */
