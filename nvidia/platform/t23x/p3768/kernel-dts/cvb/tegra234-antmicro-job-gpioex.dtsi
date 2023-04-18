@@ -1,0 +1,47 @@
+/*
+ * Copyright (c) 2023 Antmicro <www.antmicro.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+
+&gen2_i2c {
+	job_gpio_expander: gpio@20 {
+		compatible = "nxp,pcal6408";
+		status = "okay";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		gpio-line-names =
+			"CSIA_PEN",
+			"CSIB_PEN",
+			"USBC1_PEN",
+			"DISABLE_POE_DCDC",
+			"CSIA_FLG",
+			"CSIB_FLG",
+			"USBC1_FLG",
+			"USBC0_FLG";
+		interrupt-parent = <&tegra_main_gpio>;
+		interrupts = <TEGRA234_MAIN_GPIO(P, 6) GPIO_ACTIVE_LOW>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		usbc1_pen-hog {
+			gpio-hog;
+			gpios = <2 GPIO_ACTIVE_HIGH>;
+			output-high;
+		};
+		disable_poe_dcdc-hog {
+			gpio-hog;
+			gpios = <3 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+	};
+};

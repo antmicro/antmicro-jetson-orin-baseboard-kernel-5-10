@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023 Antmicro <www.antmicro.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+/ {
+	fixed-regulators {
+		/* System supplies */
+		job_reg_1v8: regulator@100 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+		};
+
+		job_reg_3v3: regulator@101 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		job_reg_5v: regulator@102 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_5v";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+		};
+
+		/* CSI camera power switches */
+		job_reg_csia_5v: regulator@110 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_csia_5v";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			vin-supply = <&job_reg_5v>;
+			gpio = <&job_gpio_expander 0 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+			startup-delay-us = <10000>;
+		};
+
+		job_reg_csia_3v3: regulator@111 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_csia_3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			vin-supply = <&job_reg_3v3>;
+			gpio = <&job_gpio_expander 0 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+			startup-delay-us = <10000>;
+		};
+
+		job_reg_csib_5v: regulator@112 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_csib_5v";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			vin-supply = <&job_reg_5v>;
+			gpio = <&job_gpio_expander 1 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+			startup-delay-us = <10000>;
+		};
+
+		job_reg_csib_3v3: regulator@113 {
+			compatible = "regulator-fixed";
+			regulator-name = "job_reg_csib_3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			vin-supply = <&job_reg_3v3>;
+			gpio = <&job_gpio_expander 1 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+			startup-delay-us = <10000>;
+		};
+	};
+};

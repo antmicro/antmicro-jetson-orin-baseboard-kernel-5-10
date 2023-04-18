@@ -1,0 +1,517 @@
+/*
+ * Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023 Antmicro <www.antmicro.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+ #include <dt-bindings/media/camera.h>
+
+/*
+ * This DTSI file implements support for Antmicro OV5640 Dual Camera Board
+ * connected to Antmicro Jetson Orin Baseboard (JOB). There are two cameras
+ * on each board, labeled on schematic M1 and M2.
+ * JOB supports two camera boards connected simulatenously to CSI A (J7) and
+ * CSI B (J8) connectors, so 4x OV5640 cameras max.
+ * For simplicity, we've assigned indices to those cameras as follows:
+ * - 0: connector A - camera M2
+ * - 1: connector A - camera M1
+ * - 2: connector B - camera M2
+ * - 3: connector B - camera M1
+ * These indices are also observed in /dev/video* device numbering.
+ *
+ * NOTE:
+ * Connecting OV5640 board to CSI B connector on JOB requires resistor
+ * jumpers to be placed correctly on JOB. See below.
+ *
+ * ====== Power management ======
+ * CSI A and CSA B connectors feature GPIO-controlled 5V and 3V3 power
+ * supplies. OV5640 uses only 3V3 rails, controlled by following regulators:
+ * - job_reg_csia_3v3 for CSI A
+ * - job_reg_csib_3v3 for CSI B
+ *
+ * Each regulator powers up both cameras on the daughterboard as well as XTAL
+ * oscillators which clock them.
+ *
+ * Reset pins of OV5640 are not routed on JOB and are pulled high, so GPIO
+ * reset functionality is not available.
+ * Power-down pins of OV5640 are routed on JOB to the following nets:
+ * - Camera 0: VSYNC_CAM0_3V3 / VSYNC_CAM0 - SoM pin 114 - GPIO H.6
+ * - Camera 1: VSYNC_CAM1_3V3 / VSYNC_CAM1 - SoM pin 120 - GPIO AC.0
+ * - Camera 2: VSYNC_CAM3_3V3 / VSYNC_CAM3 - SoM pin 228 - GPIO H.0
+ *                 (needs R5 placed, R3 removed)
+ * - Camera 3: VSYNC_CAM2_3V3 / VSYNC_CAM2 - SoM pin 218 - GPIO N.1
+ *                 (needs R4 placed, R2 removed)
+ *
+ * ====== I2C routing ======
+ * - Camera 0: SCL/SDA_CAM0 (job_cam0_i2c)
+ * - Camera 1: SCL/SDA_CAM1 (job_cam1_i2c)
+ * - Camera 2: SCL/SDA_CAM2 (job_cam2_i2c)
+ * - Camera 3: SCL/SDA_CAM3 (job_cam3_i2c)
+ *
+ * ====== CSI lane mapping ======
+ * - Camera 0: CSI0 = CSI_A [CLK, D0, D1]
+ * - Camera 1: CSI2 = CSI_C [CLK, D0, D1]
+ * - Camera 2: CSI1 = CSI_B [CLK, D0, D1]
+ *        (needs R107 placed, R103 removed - is a default configuration)
+ * - Camera 3: CSI3 = CSI_D [CLK, D0, D1]
+ *        (needs R122 placed, R108 removed)
+ *
+ * ====== CSI lane polarity ======
+ *
+ * See Jetson Orin NX Design Guide DG-10931-001 fig.10-1.:
+ * - CSI0_D1 is inverted on SoM
+ * - CSI1_D0 is inverted on SoM
+ */
+
+
+ // Camera nodes
+ &job_cam0_i2c {
+ 	ov5640_cam0: camera@3c {
+ 		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csia_3v3>;
+
+		vertical-flip = "true";
+
+		/* 1920x1080 */
+		mode0 {
+			mclk_khz = "24000";
+			num_lanes = "2";
+			tegra_sinterface = "serial_a";
+			phy_mode = "DPHY";
+			discontinuous_clk = "yes";
+			dpcm_enable = "false";
+			cil_settletime = "0";
+			/*
+			 * even with a 2-lane camera this controls the whole
+			 * SCIL - 4 lanes of both CSI 0 and CSI 1!
+			 */
+			lane_polarity = "6";
+
+			active_w = "1920";
+			active_h = "1080";
+			pixel_t = "bayer_bggr";
+			readout_orientation = "0";
+			line_length = "2688";
+			inherent_gain = "1";
+			pix_clk_hz = "168000000";
+			csi_pixel_bit_depth = "8";
+
+			gain_factor = "1";
+			min_gain_val = "1";
+			max_gain_val = "16";
+			framerate_factor = "1000000";
+			min_framerate = "1816577";
+			max_framerate = "30000000";
+			exposure_factor = "1";
+			min_exp_time = "34";
+			max_exp_time = "550385";
+		};
+
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				ov5640_cam0_out: endpoint {
+					status = "okay";
+					port-index = <0>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_in0>;
+				};
+			};
+		};
+	};
+};
+
+&job_cam1_i2c {
+	ov5640_cam1: camera@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csia_3v3>;
+
+		vertical-flip = "true";
+
+		/* 1920x1080 */
+		mode0 {
+			mclk_khz = "24000";
+			num_lanes = "2";
+			tegra_sinterface = "serial_c";
+			phy_mode = "DPHY";
+			discontinuous_clk = "yes";
+			dpcm_enable = "false";
+			cil_settletime = "0";
+
+			active_w = "1920";
+			active_h = "1080";
+			pixel_t = "bayer_bggr";
+			readout_orientation = "0";
+			line_length = "2688";
+			inherent_gain = "1";
+			pix_clk_hz = "168000000";
+			csi_pixel_bit_depth = "8";
+
+			gain_factor = "1";
+			min_gain_val = "1";
+			max_gain_val = "16";
+			framerate_factor = "1000000";
+			min_framerate = "1816577";
+			max_framerate = "30000000";
+			exposure_factor = "1";
+			min_exp_time = "34";
+			max_exp_time = "550385";
+		};
+
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				ov5640_cam1_out: endpoint {
+					status = "okay";
+					port-index = <2>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_in2>;
+				};
+			};
+		};
+	};
+};
+
+&job_cam2_i2c {
+	ov5640_cam2: camera@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csib_3v3>;
+
+		vertical-flip = "true";
+
+		/* 1920x1080 */
+		mode0 {
+			mclk_khz = "24000";
+			num_lanes = "2";
+			tegra_sinterface = "serial_b";
+			phy_mode = "DPHY";
+			discontinuous_clk = "yes";
+			dpcm_enable = "false";
+			cil_settletime = "0";
+			/*
+			 * even with a 2-lane camera this controls the whole
+			 * SCIL - 4 lanes of both CSI 0 and CSI 1!
+			 */
+			lane_polarity = "6";
+
+			active_w = "1920";
+			active_h = "1080";
+			pixel_t = "bayer_bggr";
+			readout_orientation = "0";
+			line_length = "2688";
+			inherent_gain = "1";
+			// mclk_multiplier = "6.67";
+			pix_clk_hz = "168000000";
+			csi_pixel_bit_depth = "8";
+
+			gain_factor = "1";
+			min_gain_val = "1";
+			max_gain_val = "16";
+			framerate_factor = "1000000";
+			min_framerate = "1816577";
+			max_framerate = "30000000";
+			exposure_factor = "1";
+			min_exp_time = "34";
+			max_exp_time = "550385";
+		};
+
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				ov5640_cam2_out: endpoint {
+					status = "okay";
+					port-index = <1>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_in1>;
+				};
+			};
+		};
+	};
+};
+
+&job_cam3_i2c {
+	ov5640_cam3: camera@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csib_3v3>;
+
+		vertical-flip = "true";
+
+		/* 1920x1080 */
+		mode0 {
+			mclk_khz = "24000";
+			num_lanes = "2";
+			tegra_sinterface = "serial_d";
+			phy_mode = "DPHY";
+			discontinuous_clk = "yes";
+			dpcm_enable = "false";
+			cil_settletime = "0";
+
+			active_w = "1920";
+			active_h = "1080";
+			pixel_t = "bayer_bggr";
+			readout_orientation = "0";
+			line_length = "2688";
+			inherent_gain = "1";
+			pix_clk_hz = "168000000";
+			csi_pixel_bit_depth = "8";
+
+			gain_factor = "1";
+			min_gain_val = "1";
+			max_gain_val = "16";
+			framerate_factor = "1000000";
+			min_framerate = "1816577";
+			max_framerate = "30000000";
+			exposure_factor = "1";
+			min_exp_time = "34";
+			max_exp_time = "550385";
+		};
+
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				ov5640_cam3_out: endpoint {
+					status = "okay";
+					port-index = <3>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_in3>;
+				};
+			};
+		};
+	};
+};
+
+&tegra_main_gpio {
+	/* hog camera PWRDN GPIOs: drive all of them low so that cameras are always enabled */
+	cam0_pwrdn-hog {
+		gpio-hog;
+		gpios = <TEGRA234_MAIN_GPIO(H, 6) GPIO_ACTIVE_HIGH>;
+		output-low;
+	};
+
+	cam1_pwrdn-hog {
+		gpio-hog;
+		gpios = <TEGRA234_MAIN_GPIO(AC, 0) GPIO_ACTIVE_HIGH>;
+		output-low;
+	};
+
+	cam2_pwrdn-hog {
+		gpio-hog;
+		gpios = <TEGRA234_MAIN_GPIO(H, 0) GPIO_ACTIVE_HIGH>;
+		output-low;
+	};
+
+	cam3_pwrdn-hog {
+		gpio-hog;
+		gpios = <TEGRA234_MAIN_GPIO(N, 1) GPIO_ACTIVE_HIGH>;
+		output-low;
+	};
+};
+
+/ {
+	host1x@13e00000 {
+		nvcsi@15a00000 {
+			num-channels = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			channel@0 {
+				reg = <0>;
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					port@0 {
+						reg = <0>;
+						rbpcv2_nvcsi_in0: endpoint@0 {
+							port-index = <0>;
+							bus-width = <2>;
+							remote-endpoint = <&ov5640_cam0_out>;
+						};
+					};
+					port@1 {
+						reg = <1>;
+						rbpcv2_nvcsi_out0: endpoint@1 {
+							remote-endpoint = <&rbpcv2_vi_in0>;
+						};
+					};
+				};
+			};
+			channel@1 {
+				reg = <1>;
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					port@0 {
+						reg = <0>;
+						rbpcv2_nvcsi_in2: endpoint@0 {
+							port-index = <2>;
+							bus-width = <2>;
+							remote-endpoint = <&ov5640_cam1_out>;
+						};
+					};
+					port@1 {
+						reg = <1>;
+						rbpcv2_nvcsi_out2: endpoint@1 {
+							remote-endpoint = <&rbpcv2_vi_in2>;
+						};
+					};
+				};
+			};
+			channel@2 {
+				reg = <2>;
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					port@0 {
+						reg = <0>;
+						rbpcv2_nvcsi_in1: endpoint@0 {
+							port-index = <1>;
+							bus-width = <2>;
+							remote-endpoint = <&ov5640_cam2_out>;
+						};
+					};
+					port@1 {
+						reg = <1>;
+						rbpcv2_nvcsi_out1: endpoint@1 {
+							remote-endpoint = <&rbpcv2_vi_in1>;
+						};
+					};
+				};
+			};
+			channel@3 {
+				reg = <3>;
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					port@0 {
+						reg = <0>;
+						rbpcv2_nvcsi_in3: endpoint@0 {
+							port-index = <3>;
+							bus-width = <2>;
+							remote-endpoint = <&ov5640_cam3_out>;
+						};
+					};
+					port@1 {
+						reg = <1>;
+						rbpcv2_nvcsi_out3: endpoint@1 {
+							remote-endpoint = <&rbpcv2_vi_in3>;
+						};
+					};
+				};
+			};
+		};
+	};
+
+	tegra-capture-vi {
+		num-channels = <4>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				rbpcv2_vi_in0: endpoint {
+					port-index = <0>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_out0>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				rbpcv2_vi_in2: endpoint {
+					port-index = <2>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_out2>;
+				};
+			};
+			port@2 {
+				reg = <2>;
+				rbpcv2_vi_in1: endpoint {
+					port-index = <1>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_out1>;
+				};
+			};
+			port@3 {
+				reg = <3>;
+				rbpcv2_vi_in3: endpoint {
+					port-index = <3>;
+					bus-width = <2>;
+					remote-endpoint = <&rbpcv2_nvcsi_out3>;
+				};
+			};
+		};
+	};
+
+	tcp: tegra-camera-platform {
+		compatible = "nvidia, tegra-camera-platform";
+		status = "okay";
+		/**
+		* Physical settings to calculate max ISO BW
+		*
+		* num_csi_lanes = <>;
+		* Total number of CSI lanes when all cameras are active
+		*
+		* max_lane_speed = <>;
+		* Max lane speed in Kbit/s
+		*
+		* min_bits_per_pixel = <>;
+		* Min bits per pixel
+		*
+		* vi_peak_byte_per_pixel = <>;
+		* Max byte per pixel for the VI ISO case
+		*
+		* vi_bw_margin_pct = <>;
+		* Vi bandwidth margin in percentage
+		*
+		* max_pixel_rate = <>;
+		* Max pixel rate in Kpixel/s for the ISP ISO case
+		*
+		* isp_peak_byte_per_pixel = <>;
+		* Max byte per pixel for the ISP ISO case
+		*
+		* isp_bw_margin_pct = <>;
+		* Isp bandwidth margin in percentage
+		*/
+		num_csi_lanes = <8>;
+		max_lane_speed = <1500000>;
+		min_bits_per_pixel = <10>;
+		vi_peak_byte_per_pixel = <2>;
+		vi_bw_margin_pct = <25>;
+		max_pixel_rate = <240000>;
+		isp_peak_byte_per_pixel = <5>;
+		isp_bw_margin_pct = <25>;
+	};
+};
