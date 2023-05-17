@@ -804,7 +804,7 @@ int vb2_create_bufs(struct vb2_queue *q, struct v4l2_create_buffers *create)
 	return ret ? ret : vb2_core_create_bufs(q, create->memory,
 						&create->count,
 						requested_planes,
-						requested_sizes);
+						requested_sizes, false, 0);
 }
 EXPORT_SYMBOL_GPL(vb2_create_bufs);
 

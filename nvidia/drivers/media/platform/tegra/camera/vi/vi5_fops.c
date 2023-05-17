@@ -39,8 +39,6 @@
 #define VI_CHANNEL_DEV "/dev/capture-vi-channel"
 #define VI_CHAN_PATH_MAX 40
 
-#define CAPTURE_TIMEOUT_MS	2500
-
 static const struct vi_capture_setup default_setup = {
 	.channel_flags = 0
 	| CAPTURE_CHANNEL_FLAG_VIDEO
@@ -210,20 +208,6 @@ static const struct v4l2_ctrl_config vi5_custom_ctrls[] = {
 
 static int vi5_add_ctrls(struct tegra_channel *chan)
 {
-	int i;
-
-	/* Add vi5 custom controls */
-	for (i = 0; i < ARRAY_SIZE(vi5_custom_ctrls); i++) {
-		v4l2_ctrl_new_custom(&chan->ctrl_handler,
-			&vi5_custom_ctrls[i], NULL);
-		if (chan->ctrl_handler.error) {
-			dev_err(chan->vi->dev,
-				"Failed to add %s ctrl\n",
-				vi5_custom_ctrls[i].name);
-			return chan->ctrl_handler.error;
-		}
-	}
-
 	return 0;
 }
 
@@ -287,6 +271,23 @@ static int vi5_channel_setup_queue(struct tegra_channel *chan,
 
 done:
 	return ret;
+}
+
+static void vi5_bypass_datatype(struct tegra_channel *chan,
+	struct capture_descriptor *desc)
+{
+	u32 data_type = chan->fmtinfo->img_dt;
+
+	if(chan->bypass_dt) {
+		desc->ch_cfg.match.datatype = 0x0;
+		desc->ch_cfg.match.datatype_mask = 0x0;
+		desc->ch_cfg.dt_enable = 1;
+		desc->ch_cfg.dt_override = data_type;
+	} else {
+		desc->ch_cfg.match.datatype = data_type;
+		desc->ch_cfg.match.datatype_mask = 0x3f;
+		desc->ch_cfg.dt_enable = 0;
+	}
 }
 
 static struct tegra_csi_channel *find_linked_csi_channel(
@@ -375,7 +376,7 @@ static void vi5_setup_surface(struct tegra_channel *chan,
 	u32 width = chan->format.width;
 	u32 format = chan->fmtinfo->img_fmt;
 	u32 bpl = chan->format.bytesperline;
-	u32 data_type = chan->fmtinfo->img_dt;
+	
 	u32 nvcsi_stream = chan->port[vi_port];
 	struct capture_descriptor_memoryinfo *desc_memoryinfo =
 		&chan->tegra_vi_channel[vi_port]->
@@ -396,10 +397,10 @@ static void vi5_setup_surface(struct tegra_channel *chan,
 	desc->ch_cfg.match.vc = (1u << chan->virtual_channel); /* one-hot bit encoding */
 	desc->ch_cfg.frame.frame_x = width;
 	desc->ch_cfg.frame.frame_y = height;
-	desc->ch_cfg.match.datatype = data_type;
-	desc->ch_cfg.match.datatype_mask = 0x3f;
 	desc->ch_cfg.pixfmt_enable = 1;
 	desc->ch_cfg.pixfmt.format = format;
+
+	vi5_bypass_datatype(chan, desc);
 
 	desc_memoryinfo->surface[0].base_address = offset;
 	desc_memoryinfo->surface[0].size = chan->format.bytesperline * height;
@@ -508,12 +509,12 @@ static void vi5_capture_dequeue(struct tegra_channel *chan,
 			goto rel_buf;
 
 		/* Dequeue a frame and check its capture status */
-		err = vi_capture_status(chan->tegra_vi_channel[vi_port], CAPTURE_TIMEOUT_MS);
+		err = vi_capture_status(chan->tegra_vi_channel[vi_port], jiffies_to_msecs(chan->timeout));
 		if (err) {
 			if (err == -ETIMEDOUT) {
 				dev_err(vi->dev,
 					"uncorr_err: request timed out after %d ms\n",
-					CAPTURE_TIMEOUT_MS);
+					jiffies_to_msecs(chan->timeout));
 			} else {
 				dev_err(vi->dev, "uncorr_err: request err %d\n", err);
 			}
@@ -591,6 +592,7 @@ uncorr_err:
 	buf->vb2_state = VB2_BUF_STATE_ERROR;
 
 rel_buf:
+	tegra_channel_update_statistics(chan);
 	vi5_release_buffer(chan, buf);
 }
 
@@ -972,8 +974,12 @@ static int vi5_channel_stop_streaming(struct vb2_queue *vq)
 	struct tegra_channel *chan = vb2_get_drv_priv(vq);
 	long err;
 	int vi_port = 0;
-	if (!chan->bypass)
-		vi5_channel_stop_kthreads(chan);
+	if (!chan->bypass) {
+        for (vi_port = 0; vi_port < chan->valid_ports; vi_port++) {
+            vi_stop_waiting(chan->tegra_vi_channel[vi_port]);
+        }
+        vi5_channel_stop_kthreads(chan);
+    }
 
 	/* csi stream/sensor(s) devices to be closed before vi channel */
 	tegra_channel_set_stream(chan, false);
@@ -994,6 +1000,9 @@ static int vi5_channel_stop_streaming(struct vb2_queue *vq)
 
 		/* release all remaining buffers to v4l2 */
 		tegra_channel_queued_buf_done(chan, VB2_BUF_STATE_ERROR, false);
+
+		//Set requests enqueued to zero, because vi_stop_waiting canceled all pending requests
+		chan->capture_reqs_enqueued = 0;
 	}
 
 	return 0;

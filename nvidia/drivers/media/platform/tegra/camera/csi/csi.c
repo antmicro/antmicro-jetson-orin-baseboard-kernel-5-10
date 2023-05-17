@@ -155,11 +155,19 @@ u64 read_mipi_clk_from_dt(struct tegra_csi_channel *chan)
 	u64 mipi_clk = 0;
 	int mode_idx;
 
+
 	if (chan && chan->s_data) {
-		mode_idx = chan->s_data->mode_prop_idx;
-		props =  &chan->s_data->sensor_props;
-		sig_props = &props->sensor_modes[mode_idx].signal_properties;
-		mipi_clk = sig_props->mipi_clock.val;
+		struct v4l2_ctrl *link_freq_ctrl = v4l2_ctrl_find(chan->s_data->ctrl_handler,V4L2_CID_LINK_FREQ);
+		if (link_freq_ctrl != NULL) {
+			int idx = v4l2_ctrl_g_ctrl(link_freq_ctrl);
+			mipi_clk = link_freq_ctrl->qmenu_int[idx] / 2;
+		}
+		else {
+			mode_idx = chan->s_data->mode_prop_idx;
+			props =  &chan->s_data->sensor_props;
+			sig_props = &props->sensor_modes[mode_idx].signal_properties;
+			mipi_clk = sig_props->mipi_clock.val;
+		}
 	}
 
 	return mipi_clk;

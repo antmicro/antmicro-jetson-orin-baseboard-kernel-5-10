@@ -40,6 +40,9 @@
 #include <media/v4l2-dv-timings.h>
 #include <media/vi.h>
 
+#include <media/avt_csi2_soc.h>
+
+
 #include <linux/clk/tegra.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/camera_common.h>
@@ -56,6 +59,25 @@
 #define NUM_LANES_PER_BRICK	4
 
 static s64 queue_init_ts;
+
+struct camera_list_entry {
+	int channel_id;
+	struct list_head camera_list_head;
+};
+
+static struct list_head camera_list = LIST_HEAD_INIT(camera_list);
+
+enum flush_state {
+	FLUSH_NOT_INITIATED = 0,
+	FLUSH_IN_PROGRESS,
+	FLUSH_DONE,
+};
+
+static void update_flush_state(struct tegra_channel *chan,
+							   enum flush_state new_state)
+{
+	sprintf(&chan->video->flush, "%d", new_state);
+}
 
 static bool tegra_channel_verify_focuser(struct tegra_channel *chan)
 {
@@ -188,6 +210,11 @@ static void tegra_channel_fmt_align(struct tegra_channel *chan,
 
 	denominator = (!bpp->denominator) ? 1 : bpp->denominator;
 	numerator = (!bpp->numerator) ? 1 : bpp->numerator;
+
+	bpl = (*width * numerator) / denominator;
+	if (!*bytesperline)
+		*bytesperline = bpl;
+
 	/* The transfer alignment requirements are expressed in bytes. Compute
 	 * the minimum and maximum values, clamp the requested width and convert
 	 * it back to pixels.
@@ -198,10 +225,6 @@ static void tegra_channel_fmt_align(struct tegra_channel *chan,
 	align = lcm(chan->width_align, fmt_align);
 	align = align > 0 ? align : 1;
 	bpl = tegra_core_bytes_per_line(*width, align, vfmt);
-
-	/* Align stride */
-	if (chan->vi->fops->vi_stride_align)
-		chan->vi->fops->vi_stride_align(&bpl);
 
 	if (!*bytesperline)
 		*bytesperline = bpl;
@@ -536,8 +559,13 @@ void free_ring_buffers(struct tegra_channel *chan, int frames)
 				"%s: capture init latency is %lld ms\n",
 				__func__, (frame_arrived_ts - queue_init_ts));
 		}
-		vb2_buffer_done(&vbuf->vb2_buf,
-			chan->buffer_state[chan->free_index++]);
+		/* Enable single buffer use */
+		if (chan->capture_queue_depth == 2)
+			vb2_buffer_done(&vbuf->vb2_buf,
+				chan->buffer_state[chan->free_index]);
+		else
+			vb2_buffer_done(&vbuf->vb2_buf,
+				chan->buffer_state[chan->free_index++]);
 
 		if (chan->free_index >= chan->capture_queue_depth)
 			chan->free_index = 0;
@@ -607,6 +635,33 @@ void tegra_channel_ring_buffer(struct tegra_channel *chan,
 	/* release buffer N at N+2 frame start event */
 	if (chan->num_buffers >= (chan->capture_queue_depth - 1))
 		free_ring_buffers(chan, 1);
+}
+
+void tegra_channel_update_statistics(struct tegra_channel *chan)
+{
+    uint64_t curr_frame_jiffies = 0;
+
+    if (chan->capture_state != CAPTURE_GOOD) {
+		/* Mark frame as incomplete only after stopping stream */
+		if (!atomic_read(&chan->is_streaming))
+        {
+			chan->stream_stats.frames_incomplete++;
+			chan->incomplete_flag = true;
+		}
+        /* Frames counted as underrun doesn't have any flag, because they are considered as dropped */
+        else
+        {
+			chan->stream_stats.frames_underrun++;
+        }
+    }
+    else
+    {
+		chan->stream_stats.frames_count++;
+		curr_frame_jiffies = get_jiffies_64();
+		chan->stream_stats.current_frame_interval = jiffies_to_usecs(curr_frame_jiffies - chan->start_frame_jiffies);
+		chan->start_frame_jiffies = curr_frame_jiffies;
+
+    }
 }
 
 void tegra_channel_ec_close(struct tegra_mc_vi *vi)
@@ -707,14 +762,30 @@ tegra_channel_queue_setup(struct vb2_queue *vq,
 {
 	struct tegra_channel *chan = vb2_get_drv_priv(vq);
 	struct tegra_mc_vi *vi = chan->vi;
+	bool const create_bufs = (*nplanes > 0); //Create buffers is used when nplanes is not zero
+	unsigned int buffer_count = *nbuffers;
 
 	*nplanes = 1;
 
 	sizes[0] = chan->format.sizeimage;
 	alloc_devs[0] = tegra_channel_get_vi_unit(chan);
 
-	if (vi->fops && vi->fops->vi_setup_queue)
-		return vi->fops->vi_setup_queue(chan, nbuffers);
+	if (create_bufs)
+		buffer_count = vq->num_buffers + *nbuffers;
+
+	if (vi->fops && vi->fops->vi_setup_queue) {
+		int ret = vi->fops->vi_setup_queue(chan, &buffer_count);
+
+		if (ret < 0)
+			return ret;
+
+		if (create_bufs)
+			*nbuffers = buffer_count - vq->num_buffers;
+		else
+			*nbuffers = buffer_count;
+
+		return 0;
+	}
 	else
 		return -EINVAL;
 }
@@ -778,6 +849,11 @@ static void tegra_channel_buffer_queue(struct vb2_buffer *vb)
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct tegra_channel *chan = vb2_get_drv_priv(vb->vb2_queue);
 	struct tegra_channel_buffer *buf = to_tegra_channel_buffer(vbuf);
+
+	/* Reset flush state, because new buffers
+	 * are enqueued
+	 */
+	update_flush_state(chan, FLUSH_NOT_INITIATED);
 
 	/* for bypass mode - do nothing */
 	if (chan->bypass)
@@ -1017,6 +1093,17 @@ static void tegra_channel_stop_streaming(struct vb2_queue *vq)
 	queue_init_ts = 0;
 }
 
+void tegra_channel_buf_finish(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+
+	if (vbuf->vb2_buf.state == VB2_BUF_STATE_ERROR)
+	{
+		vbuf->flags |= V4L2_BUF_FLAG_INVALID;
+	}
+
+}
+
 static const struct vb2_ops tegra_channel_queue_qops = {
 	.queue_setup = tegra_channel_queue_setup,
 	.buf_prepare = tegra_channel_buffer_prepare,
@@ -1025,6 +1112,7 @@ static const struct vb2_ops tegra_channel_queue_qops = {
 	.wait_finish = vb2_ops_wait_finish,
 	.start_streaming = tegra_channel_start_streaming,
 	.stop_streaming = tegra_channel_stop_streaming,
+	.buf_finish = tegra_channel_buf_finish,
 };
 
 /* -----------------------------------------------------------------------------
@@ -1037,11 +1125,11 @@ tegra_channel_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 	struct tegra_channel *chan = video_drvdata(file);
 	int ret = 0;
 
-	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
 	cap->device_caps |= V4L2_CAP_EXT_PIX_FORMAT;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 
-	strlcpy(cap->driver, "tegra-video", sizeof(cap->driver));
+	strlcpy(cap->driver, "avt_tegra_csi2", sizeof(cap->driver));
 	strlcpy(cap->card, chan->video->name, sizeof(cap->card));
 	ret = snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s:%u",
 		 dev_name(chan->vi->dev), chan->port[0]);
@@ -1104,9 +1192,25 @@ tegra_channel_enum_frameintervals(struct file *file, void *fh,
 	ret = v4l2_subdev_call(sd, pad, enum_frame_interval, &cfg, &fie);
 
 	if (!ret) {
-		intervals->type = V4L2_FRMIVAL_TYPE_DISCRETE;
-		intervals->discrete.numerator = fie.interval.numerator;
-		intervals->discrete.denominator = fie.interval.denominator;
+		if (fie.type == V4L2_SUBDEV_FRMIVAL_TYPE_DISCRETE) {
+			intervals->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+			intervals->discrete = fie.interval;
+		}
+		else if (fie.type == V4L2_SUBDEV_FRMIVAL_TYPE_STEPWISE) {
+			intervals->type = V4L2_FRMIVAL_TYPE_STEPWISE;
+			intervals->stepwise.min = fie.interval;
+			intervals->stepwise.max = fie.max_interval;
+			intervals->stepwise.step = fie.step_interval;
+		}
+		else if (fie.type == V4L2_SUBDEV_FRMIVAL_TYPE_CONTINUOUS) {
+			intervals->type = V4L2_FRMIVAL_TYPE_CONTINUOUS;
+			intervals->stepwise.min = fie.interval;
+			intervals->stepwise.max = fie.max_interval;
+			intervals->stepwise.step.denominator = 1;
+			intervals->stepwise.step.numerator = 1;
+		}
+
+
 	}
 
 	return ret;
@@ -1906,6 +2010,8 @@ int tegra_channel_init_subdevices(struct tegra_channel *chan)
 		: chan->port[0] + 1;
 	int len = 0;
 
+	update_flush_state(chan, FLUSH_NOT_INITIATED);
+
 	/* set_stream of CSI */
 	pad = media_entity_remote_pad(&chan->pad);
 	if (!pad)
@@ -1945,9 +2051,8 @@ int tegra_channel_init_subdevices(struct tegra_channel *chan)
 		v4l2_set_subdev_hostdata(sd, chan);
 		sd->grp_id = grp_id;
 		chan->subdev[num_sd++] = sd;
-		/* Add subdev name to this video dev name with vi-output tag*/
-		len = snprintf(chan->video->name, sizeof(chan->video->name), "%s, %s",
-			"vi-output", sd->name);
+		/* Add subdev name to this video dev name */
+		len = snprintf(chan->video->name, sizeof(chan->video->name), "%s", sd->name);
 		if (len < 0)
 			return -EINVAL;
 
@@ -2032,6 +2137,20 @@ tegra_channel_get_format(struct file *file, void *fh,
 {
 	struct tegra_channel *chan = video_drvdata(file);
 	struct v4l2_pix_format *pix = &format->fmt.pix;
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
+	struct v4l2_subdev_format fmt = {};
+	int ret;
+
+	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	fmt.pad = 0;
+
+	ret = v4l2_subdev_call(sd, pad, get_fmt, NULL, &fmt);
+
+	if (ret)
+		return ret;
+
+	tegra_channel_update_format(chan, fmt.format.width, fmt.format.height,
+								chan->fmtinfo->fourcc, &chan->fmtinfo->bpp, 0);
 
 	*pix = chan->format;
 
@@ -2086,6 +2205,21 @@ tegra_channel_try_format(struct file *file, void *fh,
 	return  __tegra_channel_try_format(chan, &format->fmt.pix);
 }
 
+static void tegra_channel_s_bypass_vi_dt_match(struct tegra_channel *chan, bool bypass)
+{
+	struct tegra_csi_device *csi = tegra_get_mc_csi();
+	struct tegra_csi_channel *csi_it;
+	int i = 0;
+
+	list_for_each_entry(csi_it, &csi->csi_chans, list) {
+		for (i = 0; i < chan->num_subdevs; i++)
+			if (chan->subdev[i] == &csi_it->subdev)
+				csi_it->bypass_dt = bypass;
+	}
+
+	chan->bypass_dt = bypass;
+}
+
 static int
 __tegra_channel_set_format(struct tegra_channel *chan,
 			struct v4l2_pix_format *pix)
@@ -2103,6 +2237,12 @@ __tegra_channel_set_format(struct tegra_channel *chan,
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	fmt.pad = 0;
 	v4l2_fill_mbus_format(&fmt.format, pix, vfmt->code);
+
+	if (chan->format.pixelformat == V4L2_PIX_FMT_CUSTOM) {
+		tegra_channel_s_bypass_vi_dt_match(chan, true);
+	} else {
+		tegra_channel_s_bypass_vi_dt_match(chan, false);
+	}
 
 	ret = v4l2_subdev_call(sd, pad, set_fmt, &cfg, &fmt);
 	if (ret == -ENOIOCTLCMD)
@@ -2136,6 +2276,11 @@ tegra_channel_set_format(struct file *file, void *fh,
 	struct tegra_channel *chan = video_drvdata(file);
 	int ret = 0;
 
+    if (format->fmt.pix.pixelformat == V4L2_PIX_FMT_CUSTOM)
+    {
+        chan->prev_format = chan->format;
+    }
+
 	/* get the suppod format by try_fmt */
 	ret = __tegra_channel_try_format(chan, &format->fmt.pix);
 	if (ret)
@@ -2144,7 +2289,13 @@ tegra_channel_set_format(struct file *file, void *fh,
 	if (vb2_is_busy(&chan->queue))
 		return -EBUSY;
 
-	return __tegra_channel_set_format(chan, &format->fmt.pix);
+	ret = __tegra_channel_set_format(chan, &format->fmt.pix);
+	if (ret)
+		return ret;
+
+	ret = __tegra_channel_set_format(chan, &chan->format);
+
+	return ret;
 }
 
 static int tegra_channel_subscribe_event(struct v4l2_fh *fh,
@@ -2214,15 +2365,227 @@ static int tegra_channel_log_status(struct file *file, void *priv)
 	return 0;
 }
 
+int tegra_channel_ioctl_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
+{
+	struct tegra_channel *chan = video_drvdata(file);
+	int ret = 0;
+
+	ret = vb2_ioctl_dqbuf(file, priv, p);
+
+	if (chan->incomplete_flag) {
+		p->flags |= V4L2_BUF_FLAG_INCOMPLETE;
+		chan->incomplete_flag = false;
+	}
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	p->flags |= V4L2_BUF_FLAG_VALID;
+	chan->dqbuf_count++;
+
+	return 0;
+}
+
 static long tegra_channel_default_ioctl(struct file *file, void *fh,
 			bool use_prio, unsigned int cmd, void *arg)
 {
 	struct tegra_channel *chan = video_drvdata(file);
-	struct tegra_mc_vi *vi = chan->vi;
-	long ret = 0;
+	struct v4l2_subdev *sd_on_csi = chan->subdev_on_csi;
+	struct video_device *vdev = chan->video;
+	long ret = -ENOTTY;
 
-	if (vi->fops && vi->fops->vi_default_ioctl)
-		ret = vi->fops->vi_default_ioctl(file, fh, use_prio, cmd, arg);
+	switch(cmd)
+	{
+		case VIDIOC_MEM_ALLOC: {
+			struct v4l2_dma_mem *mem = arg;
+			int ret = 0;
+			int count = 1;
+			int plane_size[VIDEO_MAX_PLANES] = { chan->format.sizeimage };
+
+			if (chan->queue.owner && chan->queue.owner != file->private_data)
+				return -EBUSY;
+
+			ret = vb2_core_create_single_buf(&chan->queue, mem->memory, &count, 1, plane_size, true, mem->index);
+			chan->queue.owner = file->private_data;
+			chan->created_bufs++;
+
+			if (ret < 0)
+				return ret;
+			return 0;
+
+			break;
+		}
+
+		case VIDIOC_MEM_FREE: {
+			struct v4l2_dma_mem *mem = arg;
+			int ret = 0;
+
+			if (chan->queue.owner && chan->queue.owner != file->private_data)
+				return -EBUSY;
+
+			ret = vb2_buffer_free(&chan->queue, mem->index);
+			if (ret < 0)
+				return ret;
+			chan->created_bufs = 0;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_FLUSH_FRAMES: {
+			int i;
+			struct vb2_queue *q = &chan->queue;
+        if (chan->created_bufs > 0)
+        {
+			for (i = 0; i < q->num_buffers; ++i)
+				{
+				switch (q->bufs[i]->state) {
+					case VB2_BUF_STATE_QUEUED:
+					case VB2_BUF_STATE_ACTIVE:
+						to_vb2_v4l2_buffer(q->bufs[i])->flags |= V4L2_BUF_FLAG_UNUSED;
+						break;
+					default:
+						break;
+				}
+            }
+        }
+			update_flush_state(chan, FLUSH_IN_PROGRESS);
+			vb2_core_queue_cancel(q);
+			update_flush_state(chan, FLUSH_DONE);
+			sysfs_notify(&vdev->dev.kobj, NULL, "flush");
+			return 0;
+			break;
+		}
+
+		case VIDIOC_STREAMSTAT: {
+			struct v4l2_stats_t *stream_stats = arg;
+			chan->stream_stats.current_frame_count = 1;
+			*stream_stats = chan->stream_stats;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_RESET_STREAMSTAT:
+			memset(&chan->stream_stats, 0x00, sizeof(struct v4l2_stats_t));
+			chan->qbuf_count = 0;
+			chan->dqbuf_count = 0;
+			return 0;
+			break;
+
+		case VIDIOC_STREAMON_EX: {
+			int ret = 0;
+
+			ret = vb2_core_streamon(&chan->queue, chan->queue.type);
+
+			if (ret < 0)
+				return ret;
+
+			return 0;
+			break;
+		}
+
+		case VIDIOC_STREAMOFF_EX: {
+			struct v4l2_streamoff_ex *streamoff = arg;
+			int ret = 0;
+			unsigned long curr_timeout = chan->timeout;
+
+			chan->timeout = msecs_to_jiffies(streamoff->timeout);
+
+			ret = vb2_core_streamoff(&chan->queue, chan->queue.type);
+			sysfs_notify(&vdev->dev.kobj, NULL, "streamoff");
+
+			/* Get back to the default timeout value */
+			chan->timeout = curr_timeout;
+			/* Reset current values in order to reset the displayed current frame reate after stop*/
+			chan->stream_stats.current_frame_count = 0;
+			chan->stream_stats.current_frame_interval = 0;
+
+			return 0;
+			break;
+		}
+
+		case VIDIOC_G_STATISTICS_CAPABILITIES: {
+			struct v4l2_statistics_capabilities *statistics_capabilities = arg;
+			statistics_capabilities->statistics_capability = V4L2_STATISTICS_CAPABILITY_FrameCount |
+															 V4L2_STATISTICS_CAPABILITY_FramesIncomplete |
+															 V4L2_STATISTICS_CAPABILITY_PacketCRCError |
+															 V4L2_STATISTICS_CAPABILITY_CurrentFrameInterval |
+															 V4L2_STATISTICS_CAPABILITY_FramesUnderrun;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_G_MIN_ANNOUNCED_FRAMES: {
+			struct v4l2_min_announced_frames *min_announced_frames = arg;
+			min_announced_frames->min_announced_frames = MIN_ANNOUNCED_FRAMES;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_G_SUPPORTED_LANE_COUNTS: {
+
+			struct v4l2_supported_lane_counts *lane_counts = arg;
+
+			lane_counts->supported_lane_counts =
+					V4L2_LANE_COUNT_1_LaneSupport |
+					V4L2_LANE_COUNT_2_LaneSupport |
+					V4L2_LANE_COUNT_4_LaneSupport;
+
+			return 0;
+		}
+
+		case VIDIOC_G_CSI_HOST_CLK_FREQ: {
+			struct v4l2_csi_host_clock_freq_ranges *csi_clk_ranges = arg;
+
+			csi_clk_ranges->lane_range_1.is_valid =
+			csi_clk_ranges->lane_range_2.is_valid =
+			csi_clk_ranges->lane_range_4.is_valid = 1;
+			csi_clk_ranges->lane_range_1.min =
+			csi_clk_ranges->lane_range_2.min =
+			csi_clk_ranges->lane_range_4.min =
+					CSI_HOST_CLK_MIN_FREQ;
+			csi_clk_ranges->lane_range_1.max =
+			csi_clk_ranges->lane_range_2.max =
+			csi_clk_ranges->lane_range_4.max =
+					CSI_HOST_CLK_MAX_FREQ;
+
+			csi_clk_ranges->lane_range_3.is_valid = 0;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_G_IPU_RESTRICTIONS: {
+			struct v4l2_ipu_restrictions *ipu_restrictions = arg;
+
+			ipu_restrictions->ipu_x.is_valid = 1;
+			ipu_restrictions->ipu_x.min   = FRAMESIZE_MIN_W;
+			ipu_restrictions->ipu_x.max   = FRAMESIZE_MAX_W;
+			ipu_restrictions->ipu_x.inc   = FRAMESIZE_INC_W;
+			ipu_restrictions->ipu_y.is_valid = 1;
+			ipu_restrictions->ipu_y.min   = FRAMESIZE_MIN_H;
+			ipu_restrictions->ipu_y.max   = FRAMESIZE_MAX_H;
+			ipu_restrictions->ipu_y.inc   = FRAMESIZE_INC_H;
+			return 0;
+			break;
+		}
+
+		case VIDIOC_G_SUPPORTED_DATA_IDENTIFIERS: {
+			struct v4l2_csi_data_identifiers_inq *data_ids = arg;
+
+			data_ids->data_identifiers_inq_1 = DATA_IDENTIFIER_INQ_1;
+			data_ids->data_identifiers_inq_2 = DATA_IDENTIFIER_INQ_2;
+			data_ids->data_identifiers_inq_3 = DATA_IDENTIFIER_INQ_3;
+			data_ids->data_identifiers_inq_4 = DATA_IDENTIFIER_INQ_4;
+			return 0;
+			break;
+		}
+
+	default:
+		if (v4l2_subdev_has_op(sd_on_csi, core, ioctl)) {
+			ret = v4l2_subdev_call(sd_on_csi, core, ioctl, cmd, arg);
+		}
+		break;
+	}
 
 	return ret;
 }
@@ -2252,6 +2615,150 @@ static long tegra_channel_compat_ioctl(struct file *filp,
 #endif
 #endif
 
+static int tegra_channel_vidioc_g_parm(struct file *file, void *fh,
+					   struct v4l2_streamparm *parm)
+{
+	struct tegra_channel *chan = video_drvdata(file);
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
+
+	parm->parm.capture.readbuffers = 0;
+
+	if (v4l2_subdev_has_op(sd, video, g_frame_interval)) {
+		struct v4l2_subdev_frame_interval frame_interval = {0};
+		int err = 0;
+
+		err = v4l2_subdev_call(sd, video, g_frame_interval, &frame_interval);
+
+		if (err == -ENOTTY) {
+			return 0;
+		}
+		else if (err) {
+			return err;
+		}
+
+		parm->parm.capture.timeperframe = frame_interval.interval;
+
+		parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+	}
+
+	return 0;
+}
+
+static int tegra_channel_vidioc_s_parm(struct file *file, void *fh,
+					   struct v4l2_streamparm *parm)
+{
+	struct tegra_channel *chan = video_drvdata(file);
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
+
+	parm->parm.capture.readbuffers = 0;
+
+	if (v4l2_subdev_has_op(sd, video, s_frame_interval)) {
+		struct v4l2_subdev_frame_interval frame_interval = {0};
+		int err = 0;
+
+		frame_interval.interval = parm->parm.capture.timeperframe;
+
+		err = v4l2_subdev_call(sd, video, s_frame_interval, &frame_interval);
+
+		if (err == -ENOTTY) {
+			return 0;
+		}
+		else if (err) {
+			return err;
+		}
+
+		parm->parm.capture.timeperframe = frame_interval.interval;
+
+		parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+	}
+
+	return 0;
+}
+
+int tegra_channel_create_bufs(struct file *file, void *priv,
+						  struct v4l2_create_buffers *p)
+{
+	int ret;
+	struct v4l2_format format = p->format;
+
+
+	ret = tegra_channel_try_format(file,priv,&format);
+	if (ret < 0)
+		return ret;
+
+	if (format.fmt.pix.width != p->format.fmt.pix.width)
+		return -EINVAL;
+
+	if (format.fmt.pix.height != p->format.fmt.pix.height)
+		return -EINVAL;
+
+	if (format.fmt.pix.bytesperline > p->format.fmt.pix.bytesperline)
+		return -EINVAL;
+
+	if (format.fmt.pix.sizeimage > p->format.fmt.pix.sizeimage)
+		return -EINVAL;
+
+	return vb2_ioctl_create_bufs(file,priv,p);
+}
+
+static int tegra_channel_vidioc_g_selection(struct file *file, void *fh,
+					    struct v4l2_selection *s)
+{
+	struct tegra_channel *chan = video_drvdata(file);
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
+	struct v4l2_subdev_selection ss = {0};
+	int retval;
+
+	if (!v4l2_subdev_has_op(sd, pad, get_selection))
+		return -ENOTTY;
+
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+
+	ss.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	ss.pad = 0;
+	ss.target = s->target;
+	ss.flags = s->flags;
+	memcpy(&ss.r, &s->r, sizeof(struct v4l2_rect));
+
+	retval = v4l2_subdev_call(sd, pad, get_selection, NULL, &ss);
+
+	s->target = ss.target;
+	s->flags = ss.flags;
+	memcpy(&s->r, &ss.r, sizeof(struct v4l2_rect));
+
+	return retval;
+}
+
+static int tegra_channel_vidioc_s_selection(struct file *file, void *fh,
+					    struct v4l2_selection *s)
+{
+	struct tegra_channel *chan = video_drvdata(file);
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
+	struct v4l2_subdev_selection ss;
+	struct v4l2_format format;
+	int retval;
+
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	if (!v4l2_subdev_has_op(sd, pad, set_selection))
+		return -ENOTTY;
+
+	ss.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	ss.pad = 0;
+	ss.target = s->target;
+	ss.flags = s->flags;
+	memcpy(&ss.r, &s->r, sizeof(struct v4l2_rect));
+
+	retval = v4l2_subdev_call(sd, pad, set_selection, NULL, &ss);
+
+	(void) tegra_channel_get_format(file, fh, &format);
+
+	return retval;
+}
+
 static const struct v4l2_ioctl_ops tegra_channel_ioctl_ops = {
 	.vidioc_querycap		= tegra_channel_querycap,
 	.vidioc_enum_framesizes		= tegra_channel_enum_framesizes,
@@ -2264,8 +2771,8 @@ static const struct v4l2_ioctl_ops tegra_channel_ioctl_ops = {
 	.vidioc_prepare_buf		= vb2_ioctl_prepare_buf,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
 	.vidioc_qbuf			= vb2_ioctl_qbuf,
-	.vidioc_dqbuf			= vb2_ioctl_dqbuf,
-	.vidioc_create_bufs		= vb2_ioctl_create_bufs,
+	.vidioc_dqbuf			= tegra_channel_ioctl_dqbuf,
+	.vidioc_create_bufs		= tegra_channel_create_bufs,
 	.vidioc_expbuf			= vb2_ioctl_expbuf,
 	.vidioc_streamon		= vb2_ioctl_streamon,
 	.vidioc_streamoff		= vb2_ioctl_streamoff,
@@ -2283,6 +2790,11 @@ static const struct v4l2_ioctl_ops tegra_channel_ioctl_ops = {
 	.vidioc_s_input			= tegra_channel_s_input,
 	.vidioc_log_status		= tegra_channel_log_status,
 	.vidioc_default			= tegra_channel_default_ioctl,
+	.vidioc_g_parm			= tegra_channel_vidioc_g_parm,
+	.vidioc_s_parm			= tegra_channel_vidioc_s_parm,
+	.vidioc_s_selection 	= tegra_channel_vidioc_s_selection,
+	.vidioc_g_selection 	= tegra_channel_vidioc_g_selection,
+
 };
 
 static int tegra_channel_close(struct file *fp);
@@ -2294,9 +2806,13 @@ static int tegra_channel_open(struct file *fp)
 	struct tegra_mc_vi *vi;
 	struct tegra_csi_device *csi;
 
+	if (chan->avt_cam_mode && atomic_read(&chan->open_count) > 0)
+		return -EBUSY;
+
 	trace_tegra_channel_open(vdev->name);
 	mutex_lock(&chan->video_lock);
 	ret = v4l2_fh_open(fp);
+
 	if (ret || !v4l2_fh_is_singular_file(fp)) {
 		mutex_unlock(&chan->video_lock);
 		return ret;
@@ -2318,6 +2834,7 @@ static int tegra_channel_open(struct file *fp)
 			return ret;
 	}
 
+	atomic_inc(&chan->open_count);
 
 	mutex_unlock(&chan->video_lock);
 	return 0;
@@ -2334,16 +2851,25 @@ static int tegra_channel_close(struct file *fp)
 	struct video_device *vdev = video_devdata(fp);
 	struct tegra_channel *chan = video_drvdata(fp);
 	struct tegra_mc_vi *vi = chan->vi;
+	struct v4l2_subdev *sd = chan->subdev_on_csi;
 	bool is_singular;
+	int was_streaming = atomic_read(&chan->is_streaming);
+	bool was_owner = chan->queue.owner == fp->private_data;
 
 	trace_tegra_channel_close(vdev->name);
 	mutex_lock(&chan->video_lock);
 	is_singular = v4l2_fh_is_singular_file(fp);
 	ret = _vb2_fop_release(fp, NULL);
 
+	if (was_owner && was_streaming && chan->avt_cam_mode)
+	{
+		dev_warn(vi->dev, "Called close while streaming in avt_cam_mode\n");
+		dev_warn(vi->dev, "Resetting device!\n");
+		v4l2_subdev_call(sd,core,reset,0);
+	}
+
 	if (!is_singular) {
-		mutex_unlock(&chan->video_lock);
-		return ret;
+		goto exit;
 	}
 
 	if (tegra_channel_verify_focuser(chan)) {
@@ -2352,6 +2878,17 @@ static int tegra_channel_close(struct file *fp)
 			dev_err(vi->dev, "Failed to power off subdevices\n");
 	}
 
+	if (chan->format.pixelformat == V4L2_PIX_FMT_CUSTOM)
+	{
+		struct v4l2_format format;
+
+		dev_dbg(vi->dev,"Restore pixelformat");
+		format.fmt.pix = chan->prev_format;
+		tegra_channel_set_format(fp,NULL,&format);
+	}
+
+exit:
+	atomic_dec(&chan->open_count);
 	mutex_unlock(&chan->video_lock);
 	return ret;
 }
@@ -2464,7 +3001,7 @@ int tegra_channel_init_video(struct tegra_channel *chan)
 	chan->video->vfl_type = VFL_TYPE_GRABBER;
 #else
 	chan->video->vfl_type = VFL_TYPE_VIDEO;
-	chan->video->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	chan->video->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
 	chan->video->device_caps |= V4L2_CAP_EXT_PIX_FORMAT;
 #endif
 	chan->video->vfl_dir = VFL_DIR_RX;
@@ -2559,6 +3096,7 @@ int tegra_channel_init(struct tegra_channel *chan)
 #endif
 	chan->queue.timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC
 				   | V4L2_BUF_FLAG_TSTAMP_SRC_EOF;
+	chan->queue.min_buffers_needed = 1;
 	ret = vb2_queue_init(&chan->queue);
 	if (ret < 0) {
 		dev_err(chan->vi->dev, "failed to initialize VB2 queue\n");
@@ -2571,6 +3109,10 @@ int tegra_channel_init(struct tegra_channel *chan)
 		ret = -ENOMEM;
 		goto deskew_ctx_err;
 	}
+
+	chan->incomplete_flag = false;
+	chan->timeout = msecs_to_jiffies(CAPTURE_TIMEOUT_MS);
+	chan->created_bufs = 0;
 
 	chan->init_done = true;
 

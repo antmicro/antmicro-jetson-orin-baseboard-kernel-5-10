@@ -471,4 +471,6 @@ int vi_capture_set_progress_status_notifier(
 	struct tegra_vi_channel *chan,
 	struct vi_capture_progress_status_req *req);
 
+int vi_stop_waiting(struct tegra_vi_channel *chan);
+
 #endif /* __FUSA_CAPTURE_VI_H__ */

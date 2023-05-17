@@ -26,4 +26,5 @@ obj-$(CONFIG_NV_VIDEO_AR0234) += nv_ar0234.o
 obj-$(CONFIG_NV_VIDEO_HAWK_OWL) += nv_hawk_owl.o
 obj-$(CONFIG_NV_DESER_MAX96712) += max96712.o
 obj-$(CONFIG_VIDEO_ECAM) += ar1335.o
+obj-$(CONFIG_VIDEO_AVT_CSI2) += avt_csi2.o
 ar1335-objs :=  ar1335_common.o

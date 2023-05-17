@@ -36,6 +36,10 @@
 #include <linux/rwsem.h>
 #include <linux/version.h>
 
+#include <linux/libcsi_ioctl.h>
+
+#define CAPTURE_TIMEOUT_MS 12000
+
 #define MAX_FORMAT_NUM	64
 #define	MAX_SUBDEVICES	4
 #define	QUEUED_BUFFERS	4
@@ -269,6 +273,22 @@ struct tegra_channel {
 	dma_addr_t emb_buf;
 	void *emb_buf_addr;
 	unsigned int emb_buf_size;
+
+	struct v4l2_stats_t stream_stats;
+	uint64_t qbuf_count;
+	uint64_t dqbuf_count;
+	bool incomplete_flag;
+
+	bool trigger_mode;
+	bool pending_trigger;
+	uint64_t start_frame_jiffies;
+	unsigned int avt_cam_mode;
+	int created_bufs;
+	struct v4l2_pix_format prev_format;
+	atomic_t stop_streaming;
+	atomic_t open_count;
+
+	bool bypass_dt;
 };
 
 #define to_tegra_channel(vdev) \
@@ -390,6 +410,7 @@ void tegra_channel_ring_buffer(struct tegra_channel *chan,
 #else
 			       struct timespec64 *ts, int state);
 #endif
+void tegra_channel_update_statistics(struct tegra_channel *chan);
 struct tegra_channel_buffer *dequeue_buffer(struct tegra_channel *chan,
 	bool requeue);
 struct tegra_channel_buffer *dequeue_dequeue_buffer(struct tegra_channel *chan);

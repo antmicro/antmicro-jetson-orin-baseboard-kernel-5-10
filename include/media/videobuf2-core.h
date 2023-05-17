@@ -793,7 +793,11 @@ int vb2_core_reqbufs(struct vb2_queue *q, enum vb2_memory memory,
 int vb2_core_create_bufs(struct vb2_queue *q, enum vb2_memory memory,
 			 unsigned int *count,
 			 unsigned int requested_planes,
-			 const unsigned int requested_sizes[]);
+			 const unsigned int requested_sizes[], bool req_index, int index);
+
+int vb2_core_create_single_buf(struct vb2_queue *q, enum vb2_memory memory,
+							   unsigned int *count, unsigned int requested_planes,
+							   const unsigned int requested_sizes[], bool req_index, int index);
 
 /**
  * vb2_core_prepare_buf() - Pass ownership of a buffer from userspace
@@ -948,6 +952,9 @@ int vb2_core_queue_init(struct vb2_queue *q);
  * the &struct vb2_queue itself.
  */
 void vb2_core_queue_release(struct vb2_queue *q);
+
+void vb2_core_queue_cancel(struct vb2_queue *q);
+
 
 /**
  * vb2_queue_error() - signal a fatal error on the queue

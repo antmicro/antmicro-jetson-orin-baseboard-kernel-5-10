@@ -307,6 +307,11 @@ struct video_device
 	DECLARE_BITMAP(valid_ioctls, BASE_VIDIOC_PRIVATE);
 
 	struct mutex *lock;
+
+	char if_name[32];
+	char bus_info[32];
+	char flush;
+	int open_count;
 };
 
 /**
