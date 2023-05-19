@@ -108,6 +108,7 @@ struct avt_csi2_priv {
 
 	s64 link_freqs[1];
 	atomic_t open_count;
+	struct regulator		*vdd_reg;
 };
 struct avt_ctrl {
     __u32       id;

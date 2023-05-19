@@ -7177,6 +7177,7 @@ static int avt_csi2_probe(struct i2c_client *client,
     struct avt_csi2_priv *priv;
     struct device *dev = &client->dev;
     int ret;
+    int err;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
     struct v4l2_of_endpoint *endpoint;
     struct device_node *ep;
@@ -7204,6 +7205,14 @@ static int avt_csi2_probe(struct i2c_client *client,
     priv->client = client;
     priv->s_data = common_data;
 
+    priv->vdd_reg = devm_regulator_get(&client->dev, "vdd");
+    if (IS_ERR(priv->vdd_reg))
+		return dev_err_probe(&client->dev, PTR_ERR(priv->vdd_reg), "reg get err\n");
+    if (!regulator_is_enabled(priv->vdd_reg)) {
+        err = regulator_enable(priv->vdd_reg);
+	    if (err)
+		    return dev_err_probe(&client->dev, err, "reg en err\n");
+    }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
     ep = of_graph_get_next_endpoint(dev->of_node, NULL);
     if (!ep) {

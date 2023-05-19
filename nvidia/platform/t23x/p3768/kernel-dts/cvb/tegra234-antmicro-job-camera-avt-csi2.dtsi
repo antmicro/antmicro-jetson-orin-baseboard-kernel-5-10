@@ -21,6 +21,12 @@
 
 This DTSI file implements support for Allied Vision cameras.
 
+====== Power management ======
+CSI A and CSA B connectors feature GPIO-controlled 5V and 3V3 power supplies. OV5640 uses only 3V3 rails, controlled
+by following regulators:
+- job_reg_csia_5v for CSI A
+- job_reg_csib_5v for CSI B
+
 ====== I2C routing ======
 - Camera 0: SCL/SDA_CAM0 (job_cam0_i2c)
 - Camera 1: SCL/SDA_CAM1 (job_cam1_i2c)
@@ -54,6 +60,7 @@ See Jetson Orin NX Design Guide DG-10931-001 fig.10-1.:
 		/* V4L2 device node location */
 		devnode = "video0";
 		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csia_5v>;
 
 		mode0 {
 			num_lanes = "2";
@@ -120,6 +127,7 @@ See Jetson Orin NX Design Guide DG-10931-001 fig.10-1.:
 		/* V4L2 device node location */
 		devnode = "video1";
 		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csia_5v>;
 
 		mode0 {
 			num_lanes = "2";
@@ -185,6 +193,7 @@ See Jetson Orin NX Design Guide DG-10931-001 fig.10-1.:
 		/* V4L2 device node location */
 		devnode = "video2";
 		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csib_5v>;
 
 		mode0 {
 			num_lanes = "2";
@@ -251,6 +260,7 @@ See Jetson Orin NX Design Guide DG-10931-001 fig.10-1.:
 		/* V4L2 device node location */
 		devnode = "video3";
 		nvidia,no-sensor-bus-introspection;
+		vdd-supply = <&job_reg_csib_5v>;
 
 		mode0 {
 			num_lanes = "2";
