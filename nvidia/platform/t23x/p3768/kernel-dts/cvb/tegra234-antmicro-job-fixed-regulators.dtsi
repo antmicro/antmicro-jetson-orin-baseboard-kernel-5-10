@@ -56,7 +56,7 @@
 			vin-supply = <&job_reg_5v>;
 			gpio = <&job_gpio_expander 0 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
-			startup-delay-us = <10000>;	// Educated guess, update if needed
+			startup-delay-us = <5000000>;
 		};
 
 		job_reg_csia_3v3: regulator@111 {
@@ -67,7 +67,7 @@
 			vin-supply = <&job_reg_3v3>;
 			gpio = <&job_gpio_expander 0 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
-			startup-delay-us = <10000>;
+			startup-delay-us = <5000000>;
 		};
 
 		job_reg_csib_5v: regulator@112 {
@@ -78,7 +78,7 @@
 			vin-supply = <&job_reg_5v>;
 			gpio = <&job_gpio_expander 1 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
-			startup-delay-us = <10000>;
+			startup-delay-us = <5000000>;
 		};
 
 		job_reg_csib_3v3: regulator@113 {
@@ -89,7 +89,7 @@
 			vin-supply = <&job_reg_3v3>;
 			gpio = <&job_gpio_expander 1 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
-			startup-delay-us = <10000>;
+			startup-delay-us = <5000000>;
 		};
 	};
 };
