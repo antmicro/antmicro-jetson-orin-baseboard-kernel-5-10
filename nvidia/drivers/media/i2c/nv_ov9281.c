@@ -385,12 +385,16 @@ static int ov9281_power_get(struct ov9281 *priv)
 	const char *mclk_name;
 	int err = 0;
 
-	mclk_name = priv->pdata->mclk_name ?
-		    priv->pdata->mclk_name : "cam_mclk1";
-	pw->mclk = devm_clk_get(&priv->i2c_client->dev, mclk_name);
-	if (IS_ERR(pw->mclk)) {
-		dev_err(dev, "unable to get clock %s\n", mclk_name);
-		return PTR_ERR(pw->mclk);
+	mclk_name = priv->pdata->mclk_name;
+
+	if (mclk_name) {
+		pw->mclk = devm_clk_get(&priv->i2c_client->dev, mclk_name);
+		if (IS_ERR(pw->mclk)) {
+			dev_err(dev, "unable to get clock %s\n", mclk_name);
+			return PTR_ERR(pw->mclk);
+		}
+	} else {
+		pw->mclk = NULL;
 	}
 
 	if (priv->pdata->regulators.avdd) {
@@ -1074,8 +1078,8 @@ static int ov9281_parse_dt(struct i2c_client *client, struct ov9281 *priv)
 
 	err = of_property_read_string(np, "mclk", &priv->pdata->mclk_name);
 	if (err) {
-		dev_err(&client->dev, "mclk not in DT\n");
-		return -EINVAL;
+		dev_warn(&client->dev, "mclk not in DT, assuming external mclk\n");
+		priv->pdata->mclk_name = NULL;
 	}
 
 	err = of_property_read_string(np, "fsync", &fsync_str);
