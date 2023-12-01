@@ -24,6 +24,7 @@ dtb-$(BUILD_ENABLE) += tegra234-p3767-0001-p3768-0000-a0.dtb
 dtb-$(BUILD_ENABLE) += tegra234-p3767-0003-p3768-0000-a0.dtb
 dtb-$(BUILD_ENABLE) += tegra234-p3767-0004-p3768-0000-a0.dtb
 dtb-$(BUILD_ENABLE) += tegra234-p3767-0000-antmicro-job.dtb
+dtb-$(BUILD_ENABLE) += tegra234-p3767-0000-antmicro-job-ov9281.dtb
 dtbo-$(BUILD_ENABLE) += tegra234-p3767-0000-p3509-a02-adafruit-sph0645lm4h.dtbo
 dtbo-$(BUILD_ENABLE) += tegra234-p3767-0000-p3509-a02-adafruit-uda1334a.dtbo
 dtbo-$(BUILD_ENABLE) += tegra234-p3767-0000-p3509-a02-csi.dtbo

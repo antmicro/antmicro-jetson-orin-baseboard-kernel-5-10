@@ -24,8 +24,8 @@
 #include "cvm/tegra234-p3767-0000.dtsi"
 #include "cvb/tegra234-antmicro-job.dtsi"
 
-/* 4xOV5640 cameras */
-#include "cvb/tegra234-antmicro-job-camera-ov5640.dtsi"
+/* 4xOV9281 cameras */
+#include "cvb/tegra234-antmicro-job-camera-ov9281.dtsi"
 
 / {
 	nvidia,dtsfilename = __FILE__;
