@@ -27,13 +27,13 @@
 #error
 #endif
 
-#define SER_MFP2_RESET_LABEL CONCAT(SER_LABEL, _mfp2_reset)
+#define SER_MFP4_RESET_LABEL CONCAT(SER_LABEL, _mfp4_reset)
 
 &SER_LABEL {
-	SER_MFP2_RESET_LABEL {
+	SER_MFP4_RESET_LABEL {
 		gpio-hog;
 		output-low;
-		gpios = <2 0>;
+		gpios = <4 0>;
 		label = STRINGIFY(SER_MFP2_RESET_LABEL);
 	};
 
@@ -93,7 +93,7 @@
 	};
 };
 
-#undef SER_MFP2_RESET_LABEL
+#undef SER_MFP4_RESET_LABEL
 
 #undef SER_INDEX
 #undef SER_LABEL

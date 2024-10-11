@@ -50,7 +50,7 @@ CAM_LABEL: imx219@CAM_HEX_REG {
 
 	label = STRINGIFY(CAM_LABEL);
 
-	reset-gpios = <&CAM_SER_LABEL 2 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&CAM_SER_LABEL 4 GPIO_ACTIVE_HIGH>;
 
 	physical_w = "3.680";
 	physical_h = "2.760";
