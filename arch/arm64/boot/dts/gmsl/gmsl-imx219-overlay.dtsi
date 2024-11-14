@@ -30,6 +30,8 @@
 #define SER_MFP4_RESET_LABEL CONCAT(SER_LABEL, _mfp4_reset)
 
 &SER_LABEL {
+	maxim,tunnel-mode;
+
 	SER_MFP4_RESET_LABEL {
 		gpio-hog;
 		output-low;
@@ -68,6 +70,10 @@
 &des {
 	phy@GMSL_DES_PHY {
 		maxim,alt2-mem-map8;
+	};
+
+	link {
+		maxim,tunnel-mode;
 	};
 
 	channel@DES_CH_SECOND_INDEX {
