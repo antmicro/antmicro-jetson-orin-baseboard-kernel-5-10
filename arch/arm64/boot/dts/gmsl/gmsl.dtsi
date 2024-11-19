@@ -75,6 +75,11 @@ Configuration parameters:
 #define GMSL_CAM_2_TEGRA_IMX219
 #define GMSL_CAM_3_TEGRA_IMX219
 
+#define GMSL_CAM_0_TEGRA_OV5640
+#define GMSL_CAM_1_TEGRA_OV5640
+#define GMSL_CAM_2_TEGRA_OV5640
+#define GMSL_CAM_3_TEGRA_OV5640
+
 #define GMSL_SER_0_HEX_ADDR		0x41
 #define GMSL_SER_1_HEX_ADDR		0x42
 #define GMSL_SER_2_HEX_ADDR		0x43
@@ -135,8 +140,10 @@ Configuration parameters:
 #define GMSL_MAX9296A_COMPAT "maxim,max9296a"
 #define GMSL_OX03A_INCLUDE "gmsl-ox03a.dtsi"
 #define GMSL_IMX219_INCLUDE "gmsl-imx219.dtsi"
+#define GMSL_OV5640_INCLUDE "gmsl-ov5640.dtsi"
 #define GMSL_OX03A_OVERLAY_INCLUDE "gmsl-ox03a-overlay.dtsi"
 #define GMSL_IMX219_OVERLAY_INCLUDE "gmsl-imx219-overlay.dtsi"
+#define GMSL_OV5640_OVERLAY_INCLUDE "gmsl-ov5640-overlay.dtsi"
 
 #if GMSL_CAMERA_NUM >= 1
 #define GMSL_CAMERA_0
@@ -212,6 +219,8 @@ Configuration parameters:
 #define GMSL_CAM_0_DEFAULT_HEX_ADDR	0x36
 #elif defined(GMSL_CAM_0_TEGRA_IMX219)
 #define GMSL_CAM_0_DEFAULT_HEX_ADDR	0x10
+#elif defined(GMSL_CAM_0_TEGRA_OV5640)
+#define GMSL_CAM_0_DEFAULT_HEX_ADDR	0x3c
 #else
 #error
 #endif
@@ -226,6 +235,8 @@ Configuration parameters:
 #define GMSL_CAM_0_INCLUDE		GMSL_OX03A_INCLUDE
 #elif defined(GMSL_CAM_0_TEGRA_IMX219)
 #define GMSL_CAM_0_INCLUDE		GMSL_IMX219_INCLUDE
+#elif defined(GMSL_CAM_0_TEGRA_OV5640)
+#define GMSL_CAM_0_INCLUDE		GMSL_OV5640_INCLUDE
 #else
 #error
 #endif
@@ -236,6 +247,8 @@ Configuration parameters:
 #define GMSL_CAM_0_OVERLAY_INCLUDE		GMSL_OX03A_OVERLAY_INCLUDE
 #elif defined(GMSL_CAM_0_TEGRA_IMX219)
 #define GMSL_CAM_0_OVERLAY_INCLUDE		GMSL_IMX219_OVERLAY_INCLUDE
+#elif defined(GMSL_CAM_0_TEGRA_OV5640)
+#define GMSL_CAM_0_OVERLAY_INCLUDE 		GMSL_OV5640_OVERLAY_INCLUDE
 #endif
 #endif
 
@@ -270,6 +283,8 @@ Configuration parameters:
 #define GMSL_CAM_1_DEFAULT_HEX_ADDR	0x36
 #elif defined(GMSL_CAM_1_TEGRA_IMX219)
 #define GMSL_CAM_1_DEFAULT_HEX_ADDR	0x10
+#elif defined(GMSL_CAM_1_TEGRA_OV5640)
+#define GMSL_CAM_1_DEFAULT_HEX_ADDR 0x3c
 #else
 #error
 #endif
@@ -284,6 +299,8 @@ Configuration parameters:
 #define GMSL_CAM_1_INCLUDE		GMSL_OX03A_INCLUDE
 #elif defined(GMSL_CAM_1_TEGRA_IMX219)
 #define GMSL_CAM_1_INCLUDE		GMSL_IMX219_INCLUDE
+#elif defined(GMSL_CAM_1_TEGRA_OV5640)
+#define GMSL_CAM_1_INCLUDE		GMSL_OV5640_INCLUDE
 #else
 #error
 #endif
@@ -294,6 +311,8 @@ Configuration parameters:
 #define GMSL_CAM_1_OVERLAY_INCLUDE		GMSL_OX03A_OVERLAY_INCLUDE
 #elif defined(GMSL_CAM_1_TEGRA_IMX219)
 #define GMSL_CAM_1_OVERLAY_INCLUDE		GMSL_IMX219_OVERLAY_INCLUDE
+#elif defined(GMSL_CAM_1_TEGRA_OV5640)
+#define GMSL_CAM_1_OVERLAY_INCLUDE		GMSL_OV5640_OVERLAY_INCLUDE
 #endif
 #endif
 
@@ -328,6 +347,8 @@ Configuration parameters:
 #define GMSL_CAM_2_DEFAULT_HEX_ADDR	0x36
 #elif defined(GMSL_CAM_2_TEGRA_IMX219)
 #define GMSL_CAM_2_DEFAULT_HEX_ADDR	0x10
+#elif defined(GMSL_CAM_2_TEGRA_OV5640)
+#define GMSL_CAM_2_DEFAULT_HEX_ADDR 0x3c
 #else
 #error
 #endif
@@ -342,6 +363,8 @@ Configuration parameters:
 #define GMSL_CAM_2_INCLUDE		GMSL_OX03A_INCLUDE
 #elif defined(GMSL_CAM_2_TEGRA_IMX219)
 #define GMSL_CAM_2_INCLUDE		GMSL_IMX219_INCLUDE
+#elif defined(GMSL_CAM_2_TEGRA_OV5640)
+#define GMSL_CAM_2_INCLUDE		GMSL_OV5640_INCLUDE
 #else
 #error
 #endif
@@ -352,6 +375,8 @@ Configuration parameters:
 #define GMSL_CAM_2_OVERLAY_INCLUDE		GMSL_OX03A_OVERLAY_INCLUDE
 #elif defined(GMSL_CAM_2_TEGRA_IMX219)
 #define GMSL_CAM_2_OVERLAY_INCLUDE		GMSL_IMX219_OVERLAY_INCLUDE
+#elif defined(GMSL_CAM_2_TEGRA_OV5640)
+#define GMSL_CAM_2_OVERLAY_INCLUDE		GMSL_OV5640_OVERLAY_INCLUDE
 #endif
 #endif
 
@@ -386,6 +411,8 @@ Configuration parameters:
 #define GMSL_CAM_3_DEFAULT_HEX_ADDR	0x36
 #elif defined(GMSL_CAM_3_TEGRA_IMX219)
 #define GMSL_CAM_3_DEFAULT_HEX_ADDR	0x10
+#elif defined(GMSL_CAM_3_TEGRA_OV5640)
+#define GMSL_CAM_3_DEFAULT_HEX_ADDR 0x3c
 #else
 #error
 #endif
@@ -400,6 +427,8 @@ Configuration parameters:
 #define GMSL_CAM_3_INCLUDE		GMSL_OX03A_INCLUDE
 #elif defined(GMSL_CAM_3_TEGRA_IMX219)
 #define GMSL_CAM_3_INCLUDE		GMSL_IMX219_INCLUDE
+#elif defined(GMSL_CAM_3_TEGRA_OV5640)
+#define GMSL_CAM_3_INCLUDE		GMSL_OV5640_INCLUDE
 #else
 #error
 #endif
@@ -410,6 +439,8 @@ Configuration parameters:
 #define GMSL_CAM_3_OVERLAY_INCLUDE		GMSL_OX03A_OVERLAY_INCLUDE
 #elif defined(GMSL_CAM_3_TEGRA_IMX219)
 #define GMSL_CAM_3_OVERLAY_INCLUDE		GMSL_IMX219_OVERLAY_INCLUDE
+#elif defined(GMSL_CAM_3_TEGRA_OV5640)
+#define GMSL_CAM_3_OVERLAY_INCLUDE GMSL_OV5640_OVERLAY_INCLUDE
 #endif
 #endif
 
@@ -448,6 +479,22 @@ Configuration parameters:
 #endif
 
 #if defined(GMSL_CAM_3_TEGRA_IMX219)
+#error
+#endif
+
+#if defined(GMSL_CAM_0_TEGRA_OV5640)
+#error
+#endif
+
+#if defined(GMSL_CAM_1_TEGRA_OV5640)
+#error
+#endif
+
+#if defined(GMSL_CAM_2_TEGRA_OV5640)
+#error
+#endif
+
+#if defined(GMSL_CAM_3_TEGRA_OV5640)
 #error
 #endif
 
