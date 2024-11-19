@@ -1,0 +1,59 @@
+/*
+ * Top level DTS file for CVM:P3767-0003 and CVB:antmicro-job.
+ *
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (C) 2023 Analog Devices Inc.
+ * Copyright (c) 2024 Antmicro <www.antmicro.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+/dts-v1/;
+#include "tegra234-dcb-p3767-0000-hdmi.dtsi"
+#include <tegra234-soc/mods-simple-bus.dtsi>
+#include <t234-common-cvm/tegra234-thermal.dtsi>
+#include <t234-common-cvm/tegra234-cpuidle.dtsi>
+#include <t234-common-cvm/tegra234-thermal-cooling.dtsi>
+#include <t234-common-cvm/tegra234-thermal-userspace-alert.dtsi>
+#include "cvm/tegra234-p3767-0000.dtsi"
+#include "cvb/tegra234-antmicro-job.dtsi"
+
+/ {
+	nvidia,dtsfilename = __FILE__;
+	nvidia,dtbbuildtime = __DATE__, __TIME__;
+	compatible = "nvidia,p3509-0000+p3767-0003", "nvidia,p3509-0000+p3767-0005",
+			"nvidia,p3767-0003", "nvidia,p3767-0005",
+			"nvidia,tegra234", "nvidia,tegra23x";
+	model = "NVIDIA Orin Nano SoM on Antmicro Jetson Orin Baseboard";
+};
+
+/* configuration: GMSL Deserializer + 4xGMSL Serializer + 4xIMX219 */
+
+#define GMSL
+
+#define GMSL_TEGRA_PORT			0
+
+#define GMSL_DES_PHY			1
+#define GMSL_DES_PHY_NUM_LANES		2
+#define GMSL_DES_PHY_LINK_FREQ		1250000000
+#define GMSL_DES_PHY_1_2_LANE_MODE_IN_4_LANES
+
+#define GMSL_CAMERA_NUM			4
+#define GMSL_DES_MAX96724
+#define GMSL_SER_0_MAX96717
+#define GMSL_SER_1_MAX96717
+#define GMSL_SER_2_MAX96717
+#define GMSL_SER_3_MAX96717
+#define GMSL_CAM_0_TEGRA_IMX219
+#define GMSL_CAM_1_TEGRA_IMX219
+#define GMSL_CAM_2_TEGRA_IMX219
+#define GMSL_CAM_3_TEGRA_IMX219
+
+#include "tegra234-p3767-0003-p3768-0000-a0-gmsl.dtsi"

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2023 Analog Devices Inc.
+ */
+
+#define GMSL
+#define GMSL_TEGRA_PLATFORM
+
+#define GMSL_DES_I2C_LABEL job_cam0_i2c
+#define GMSL_TEGRA_LANE_POLARITY_SWAP
+
+&GMSL_DES_I2C_LABEL {
+	clock-frequency = <100000>;
+};
+
+#include "../../../../../arch/arm64/boot/dts/gmsl/gmsl.dtsi"
