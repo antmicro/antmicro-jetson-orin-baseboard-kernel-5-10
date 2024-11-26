@@ -28,12 +28,10 @@
 #endif
 
 &SER_LABEL {
-	maxim,tunnel-mode;
 
 	pipe@0 {
 		maxim,dbl8;
-		maxim,soft-bpp = <8>;
-		maxim,bpp = <8>;
+		maxim,soft-bpp = <16>;
 	};
 
 	channel@1 {
@@ -58,12 +56,9 @@
 
 &des {
 	phy@GMSL_DES_PHY {
-		maxim,alt2-mem-map8;
+		maxim,alt-mem-map8;
 	};
 
-	link {
-			maxim,tunnel-mode;
-	};
 
 	channel@DES_CH_SECOND_INDEX {
 		reg = <DES_CH_SECOND_INDEX>;
