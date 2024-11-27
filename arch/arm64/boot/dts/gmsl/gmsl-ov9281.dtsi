@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2024 Antmicro <www.antmicro.com>
+ */
+
+#include <dt-bindings/media/camera.h>
+
+#if defined(CAM_INDEX)
+#define CAM_VC_ID		CAM_INDEX
+#define CAM_SER_INDEX		CAM_INDEX
+#define CAM_SER_LABEL		CONCAT(ser_, CAM_SER_INDEX)
+#define CAM_OUT_LABEL		CAM_X_OUT_LABEL(CAM_INDEX)
+#define CAM_LABEL		CONCAT(cam_, CAM_INDEX)
+#endif
+
+#if defined(SER_INDEX) && defined(SER_CH_INDEX)
+#define CAM_OUT_REMOTE_LABEL	SER_X_CH_Y_IN_LABEL(SER_INDEX, SER_CH_INDEX)
+#endif
+
+#if !defined(CAM_HEX_REG)
+#error
+#endif
+
+#if !defined(CAM_VC_ID)
+#error
+#endif
+
+#if !defined(CAM_SER_LABEL)
+#error
+#endif
+
+#if !defined(CAM_OUT_LABEL)
+#error
+#endif
+
+#if !defined(CAM_OUT_REMOTE_LABEL)
+#error
+#endif
+
+#if !defined(CAM_LABEL)
+#error
+#endif
+
+CAM_LABEL: camera@CAM_HEX_REG {
+    compatible = "ovti,ov9281";
+    reg = <0x60>;
+    avdd-reg = "job_reg_csia_3v3";
+
+    vertical-flip = "true";
+
+    mode0 { /* OV9281_MODE_1280x800_60FPS */
+        mclk_khz = "24000";
+        num_lanes = STRINGIFY(GMSL_DES_PHY_NUM_LANES);
+		tegra_sinterface = GMSL_TEGRA_PORT_SERIAL;
+		vc_id = STRINGIFY(CAM_VC_ID);
+        phy_mode = "DPHY";
+        discontinuous_clk = "no";
+        dpcm_enable = "false";
+        cil_settletime = "0";
+        lane_polarity = "6";
+
+        active_w = "1280";
+        active_h = "800";
+        pixel_t = "bayer_rggb";
+        readout_orientation = "90";
+        line_length = "1280";
+        inherent_gain = "1";
+        mclk_multiplier = "9.33";
+        pix_clk_hz = "224000000";
+
+        gain_factor = "16";
+        csi_pixel_bit_depth = "10";
+        framerate_factor = "1000000";
+        exposure_factor = "1000000";
+        min_gain_val = "16"; /* 1.00x */
+        max_gain_val = "170"; /* 10.66x */
+        step_gain_val = "1";
+        default_gain = "16"; /* 1.00x */
+        min_hdr_ratio = "1";
+        max_hdr_ratio = "1";
+        min_framerate = "2000000"; /* 2.0 fps */
+        max_framerate = "21000000"; /* 21.0 fps */
+        step_framerate = "1";
+        default_framerate = "21000000"; /* 21.0 fps */
+        min_exp_time = "13"; /* us */
+        max_exp_time = "683709"; /* us */
+        step_exp_time = "1";
+        default_exp_time = "2495"; /* us */
+
+        embedded_metadata_height = "0";
+    };
+
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			CAM_OUT_LABEL: endpoint {
+				port-index = <GMSL_TEGRA_PORT>;
+				bus-width = <GMSL_DES_PHY_NUM_LANES>;
+				remote-endpoint = <&CAM_OUT_REMOTE_LABEL>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+			};
+		};
+	};
+};
+
+#undef CAM_HEX_REG
+#undef CAM_INDEX
+#undef CAM_SER_INDEX
+#undef CAM_SER_LABEL
+#undef CAM_VC_ID
+#undef CAM_LABEL
+#undef CAM_OUT_LABEL
+#undef CAM_OUT_REMOTE_LABEL
