@@ -31,7 +31,7 @@
 	compatible = "nvidia,p3509-0000+p3767-0003", "nvidia,p3509-0000+p3767-0005",
 			"nvidia,p3767-0003", "nvidia,p3767-0005",
 			"nvidia,tegra234", "nvidia,tegra23x";
-	model = "NVIDIA Orin Nano SoM on Antmicro Jetson Orin Baseboard";
+	model = "NVIDIA Orin Nano 8GB SoM on Antmicro Jetson Orin Baseboard with GMSL Deserializer + 4xGMSL Serializer + 4xIMX219";
 };
 
 /* configuration: GMSL Deserializer + 4xGMSL Serializer + 4xIMX219 */

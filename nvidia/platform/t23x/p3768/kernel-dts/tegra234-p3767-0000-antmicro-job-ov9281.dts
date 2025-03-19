@@ -31,5 +31,5 @@
 	nvidia,dtsfilename = __FILE__;
 	nvidia,dtbbuildtime = __DATE__, __TIME__;
 	compatible = "antmicro,job+p3767-0000", "nvidia,p3767-0000", "nvidia,tegra234", "nvidia,tegra23x";
-	model = "NVIDIA Orin NX SoM on Antmicro Jetson Orin Baseboard";
+	model = "NVIDIA Orin NX 16GB SoM on Antmicro Jetson Orin Baseboard with 4 OV9281 cameras";
 };
