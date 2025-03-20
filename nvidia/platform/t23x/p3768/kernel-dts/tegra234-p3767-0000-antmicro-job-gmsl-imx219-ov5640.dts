@@ -24,12 +24,14 @@
 #include "cvm/tegra234-p3767-0000.dtsi"
 #include "cvb/tegra234-antmicro-job.dtsi"
 
-/* 4xOV5640 cameras */
-#include "cvb/tegra234-antmicro-job-camera-ov5640.dtsi"
+/* GMSL Deserializer + 2xGMSL Serializer + IMX219 + OV5640 */
+#include "cvb/tegra234-antmicro-job-camera-gmsl-imx219-ov5640.dtsi"
 
 / {
 	nvidia,dtsfilename = __FILE__;
 	nvidia,dtbbuildtime = __DATE__, __TIME__;
 	compatible = "antmicro,job+p3767-0000", "nvidia,p3767-0000", "nvidia,tegra234", "nvidia,tegra23x";
-	model = "NVIDIA Orin NX 16GB SoM on Antmicro Jetson Orin Baseboard with 4 OV5640 cameras";
+	model = "NVIDIA Orin NX 16GB SoM on Antmicro Jetson Orin Baseboard with GMSL Deserializer + 2xGMSL Serializer + IMX219 + OV5640";
 };
+
+
