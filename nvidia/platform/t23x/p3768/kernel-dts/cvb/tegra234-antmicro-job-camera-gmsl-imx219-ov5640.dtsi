@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0
+
+#define GMSL
+
+#define GMSL_TEGRA_PORT			0
+
+#define GMSL_DES_PHY			1
+#define GMSL_DES_PHY_NUM_LANES		2
+#define GMSL_DES_PHY_LINK_FREQ		1250000000
+#define GMSL_DES_PHY_1_2_LANE_MODE_IN_4_LANES
+
+#define GMSL_CAMERA_NUM			2
+#define GMSL_DES_MAX96724
+#define GMSL_SER_0_MAX96717
+#define GMSL_SER_1_MAX96717
+
+#define GMSL_CAM_0_TEGRA_OV5640
+#define GMSL_CAM_1_TEGRA_IMX219
+
+#include "tegra234-antmicro-job-camera-gmsl.dtsi"

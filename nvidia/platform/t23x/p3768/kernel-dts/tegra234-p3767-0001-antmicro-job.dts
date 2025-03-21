@@ -1,7 +1,8 @@
 /*
- * Top level DTS file for CVM:P3767-0001 and CVB:P3509-a02-0000.
+ * Top level DTS file for CVM:P3767-0001 and CVB:antmicro-job.
  *
  * Copyright (c) 2021-2022, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2025 Antmicro <www.antmicro.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,5 +21,5 @@
 	nvidia,dtsfilename = __FILE__;
 	nvidia,dtbbuildtime = __DATE__, __TIME__;
 	compatible = "nvidia,p3509-0000+p3767-0001", "nvidia,p3767-0001", "nvidia,tegra234", "nvidia,tegra23x";
-	model = "NVIDIA Orin NX Developer Kit";
+	model = "NVIDIA Orin NX 8GB SoM on Antmicro Jetson Orin Baseboard";
 };
